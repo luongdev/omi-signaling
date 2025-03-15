@@ -1,7 +1,8 @@
-import {LoggerFactory} from "@/core/logger";
+import {LoggerFactory, LogLevel} from "@/core/logger";
 import {randomId} from "@/helpers/utils.ts";
 import {MqttClient, type MqttClientOptions} from "@/core/mqtt/mqtt-client.ts";
 import {type ClientMessage, ClientMessageType, type WorkerMessage, WorkerMessageType} from "@/worker/types.ts";
+import {ConnectionState, type MqttMessage} from "@/core/mqtt/types.ts";
 
 declare const self: {
     onconnect: (event: MessageEvent) => void;
@@ -11,8 +12,9 @@ type Port = any;
 
 
 const logger = LoggerFactory.getLogger('OmiWorker');
+LoggerFactory.setDefaultLevel(LogLevel.DEBUG);
 const ports = new Set<MessagePort>();
-// const subscribedTopics = new Set<string>();
+const subscribedTopics = new Set<string>();
 const workerId = randomId('worker');
 const portConnectionStates = new Map<string, { connected: boolean; subscribedTopics: Set<string>; port: Port; }>();
 
@@ -117,7 +119,7 @@ const handleConnect = async (port: Port, msg: ClientMessage) => {
 
     try {
         mqttClient = new MqttClient(mqttOptions);
-        // setupMQTTEventHandlers(port, portId, reqMsgId);
+        setupMqttEventHandlers(port, reqMsgId);
         const success = await mqttClient.connect();
         if (!success) {
             logger.error(`Cannot connect to mqtt broker`);
@@ -139,8 +141,6 @@ const handleConnect = async (port: Port, msg: ClientMessage) => {
                 payload: {connected: true, workerId},
                 timestamp: Date.now()
             })
-
-            logger.info(`Connected to mqtt broker`);
         }
     } catch (error) {
         logger.error(`Cannot init mqtt client:`, error);
@@ -152,6 +152,69 @@ const handleConnect = async (port: Port, msg: ClientMessage) => {
         })
         await _emit(port, {type: WorkerMessageType.CONNECTION, payload: {connected: false}, timestamp: Date.now()})
     }
+}
+
+const setupMqttEventHandlers = (_1: MessagePort, _2: string) => {
+    if (!mqttClient) {
+        logger.error(`Mqtt client is not initialized`);
+        return;
+    }
+
+    mqttClient.onStateChange(async (state: ConnectionState) => {
+        console.log('state', state);
+        const isConnected = state === ConnectionState.CONNECTED;
+        mqttConnected = isConnected;
+
+        if (isConnected) {
+            for (const [_, portState] of portConnectionStates.entries()) portState.connected = true;
+
+            if (subscribedTopics.size > 0) {
+                logger.info(`Re-subscribe to topics: ${Array.from(subscribedTopics).join(', ')}`);
+                for (const topic of subscribedTopics) {
+                    mqttClient?.subscribe(topic)
+                        .then((success) => {
+                            if (success) {
+                                logger.info(`Re-subscribed topic: ${topic}`);
+                            } else {
+                                logger.error(`Re-subscribe topic: ${topic} failed`);
+                            }
+                        })
+                        .catch((error) => {
+                            logger.error(`Re-subscribe topic: ${topic} error: `, error);
+                        });
+                }
+            }
+        } else if (state === ConnectionState.FAILED) {
+            logger.error(`[SharedWorker:${workerId}] Kết nối MQTT thất bại`);
+            await broadcast({
+                type: WorkerMessageType.ERROR,
+                payload: {
+                    message: `Kết nối MQTT thất bại`,
+                    workerId
+                },
+                timestamp: Date.now()
+            });
+        } else {
+            logger.info(`Disconnected from mqtt broker`);
+            for (const portState of portConnectionStates.values()) portState.connected = false;
+        }
+
+        await broadcast({
+            type: WorkerMessageType.CONNECTION,
+            payload: {connected: isConnected, workerId},
+            timestamp: Date.now()
+        });
+    });
+
+    mqttClient.on('#', async (msg: MqttMessage) => {
+        try {
+            logger.debug(`Received message from topic: ${msg.topic}`, {msg});
+            const msgWithWorkerId = {...msg, workerId};
+            await broadcast({type: WorkerMessageType.MESSAGE, payload: msgWithWorkerId, timestamp: msg.timestamp,});
+        } catch (error) {
+            logger.error(`[SharedWorker:${workerId}] Lỗi khi xử lý tin nhắn:`, error);
+        }
+    });
 }
 
 const broadcast = async (msg: WorkerMessage) => {

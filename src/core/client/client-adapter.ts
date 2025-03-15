@@ -7,11 +7,14 @@ import {
 import {type ILogger, LoggerFactory} from "@/core/logger";
 import {randomId} from "@/helpers/utils.ts";
 import {type ClientMessage, ClientMessageType, type WorkerMessage, WorkerMessageType} from "@/worker/types";
+import type {MqttMessage} from "@/core/mqtt/types.ts";
+import {MessageQueue} from "@/core/message/message-queue.ts";
 
 export class ClientAdapter {
 
     private readonly config: ClientAdapterConfig;
     private readonly logger: ILogger;
+    private readonly msgQueue: MessageQueue;
     private readonly eventHandlers: Map<ClientAdapterEvent, Set<ClientAdapterEventHandler>> = new Map();
 
     private worker: SharedWorker | null = null;
@@ -31,6 +34,7 @@ export class ClientAdapter {
         };
 
 
+        this.logger = LoggerFactory.getLogger(`ClientAdapter`);
         this.config = {...defaultConfig, ...config};
         if (this.config.mqttOptions?.config && !this.config.mqttOptions.config.clientId) {
             this.config.mqttOptions.config.clientId = this.config.clientId;
@@ -38,10 +42,9 @@ export class ClientAdapter {
         if (!this.config.workerUrl?.length) {
             this.config.workerUrl = '/omiworker.js';
         }
+        this.msgQueue = new MessageQueue({queueSize: config.queueSize || 3, messageTTL: config.messageTTL || 10000});
 
-        this.logger = LoggerFactory.getLogger(`ClientAdapter:${this.config.clientId}`);
-
-
+        console.log(this.msgQueue);
         Object.values(ClientAdapterEvent).forEach(evt => this.eventHandlers.set(evt as ClientAdapterEvent, new Set()));
         this.logger.debug('Client Adapter initialized', {config: this.config});
     }
@@ -147,10 +150,9 @@ export class ClientAdapter {
                 case WorkerMessageType.CONNECTION:
                     this.handleConnectionStateMessage(message);
                     break;
-                //
-                // case WorkerMessageType.MESSAGE:
-                //     this.handleMQTTMessage(message);
-                //     break;
+                case WorkerMessageType.MESSAGE:
+                    this.handleMessage(message as unknown as MqttMessage);
+                    break;
                 //
                 // case WorkerMessageType.ERROR:
                 //     this.handleErrorMessage(message);
@@ -181,6 +183,50 @@ export class ClientAdapter {
             }
         } catch (error) {
             this.logger.error('Error when handling connection state message', error);
+        }
+    }
+
+    private handleMessage(msg: MqttMessage): void {
+        try {
+            if (!msg.payload) return this.logger.error('Received message without payload from worker');
+
+            const {topic, payload, workerId} = msg.payload;
+
+            if (!topic) return this.logger.error('Received message without topic from worker', {workerId});
+
+            this.logger.debug(`Received message from worker`, {topic, payload, workerId});
+
+            const mqttMessage = {topic, payload, workerId, timestamp: Date.now()};
+            this._emit(ClientAdapterEvent.MESSAGE, mqttMessage);
+
+            // // Xử lý tin nhắn quan trọng nếu cần
+            // if (this.visibilityManager && this.indexedDBManager) {
+            //     try {
+            //         const importantTopics = this.getImportantTopics();
+            //         if (importantTopics.some(pattern => this.topicMatchesPattern(topic, pattern))) {
+            //             // Chuyển đổi thành StoredMessage
+            //             const storedMessage = {
+            //                 id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            //                 topic,
+            //                 payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
+            //                 timestamp: Date.now(),
+            //                 qos: 0,
+            //                 retain: false,
+            //                 read: false
+            //             };
+            //
+            //             // Lưu tin nhắn quan trọng
+            //             this.indexedDBManager.saveImportantMessage(storedMessage, this.getMaxMessagesPerTopic())
+            //                 .catch(error => {
+            //                     this.logger.error('Lỗi khi lưu tin nhắn quan trọng', error);
+            //                 });
+            //         }
+            //     } catch (importantError) {
+            //         this.logger.error('Lỗi khi xử lý tin nhắn quan trọng', importantError);
+            //     }
+            // }
+        } catch (error) {
+            this.logger.error('Process worker message error: ', error);
         }
     }
 

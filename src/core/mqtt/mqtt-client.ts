@@ -112,6 +112,45 @@ export class MqttClient {
         });
     }
 
+    onStateChange(handler: (state: ConnectionState) => void): void {
+        this.connectionStateHandlers.push(handler);
+        return handler(this.connectionState);
+    }
+
+    public offStateChange(handler: (state: ConnectionState) => void): void {
+        const index = this.connectionStateHandlers.indexOf(handler);
+        if (index !== -1) {
+            this.connectionStateHandlers.splice(index, 1);
+        }
+    }
+
+    public on(topic: string, handler: (msg: MqttMessage) => void): void {
+        if (!this.messageHandlers.has(topic)) {
+            this.messageHandlers.set(topic, []);
+        }
+
+        this.messageHandlers.get(topic)?.push(handler);
+    }
+
+    public off(topic: string, handler?: (msg: MqttMessage) => void): void {
+        if (!handler) {
+            this.messageHandlers.delete(topic);
+            return;
+        }
+
+        const handlers = this.messageHandlers.get(topic);
+        if (handlers) {
+            const index = handlers.indexOf(handler);
+            if (index !== -1) {
+                handlers.splice(index, 1);
+            }
+
+            if (handlers.length === 0) {
+                this.messageHandlers.delete(topic);
+            }
+        }
+    }
+
     private updateConnectionState(state: ConnectionState): void {
         if (this.connectionState !== state) {
             this.connectionState = state;
@@ -174,7 +213,7 @@ export class MqttClient {
 
                 let priority = MessagePriority.MEDIUM;
                 for (const stateTopic of this.stateTopics) {
-                    if (this.topicMatchesPattern(stateTopic, topic)) {
+                    if (this.topicMatchesPattern(topic, stateTopic)) {
                         priority = MessagePriority.HIGH;
                         break;
                     }

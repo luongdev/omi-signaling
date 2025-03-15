@@ -1,4 +1,7 @@
 import {ClientAdapter} from "@/core/client/client-adapter.ts";
+import {LoggerFactory, LogLevel} from "@/core/logger";
+
+LoggerFactory.setDefaultLevel(LogLevel.DEBUG);
 
 const client = new ClientAdapter({
     clientId: 'agent-0069',

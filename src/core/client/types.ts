@@ -6,6 +6,8 @@ export interface ClientAdapterConfig {
     useSharedWorker?: boolean;
     pingInterval: number;
     operationTimeout: number;
+    queueSize?: number,
+    messageTTL?: number,
     mqttOptions?: MqttClientOptions;
 }
 

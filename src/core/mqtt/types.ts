@@ -8,11 +8,9 @@ export interface MqttMessage extends Message {
 
 export interface ProcessedMessage extends MqttMessage {
     receivedAt: number;
-    priority: MessagePriority;
     status: 'pending' | 'processing' | 'processed' | 'failed';
     retries?: number;
     error?: string;
-    metadata?: Record<string, any>;
 }
 
 export enum MessagePriority {

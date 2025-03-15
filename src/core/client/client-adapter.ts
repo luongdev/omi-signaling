@@ -5,19 +5,15 @@ import {
     type ClientAdapterEventHandler, type ClientAdapterOperationResult
 } from "@/core/client/types.ts";
 import {type ILogger, LoggerFactory} from "@/core/logger";
-import {randomId} from "@/helpers/utils.ts";
+import {randomId, topicMatchesPattern} from "@/helpers/utils.ts";
 import {type ClientMessage, ClientMessageType, type WorkerMessage, WorkerMessageType} from "@/worker/types";
 import type {MqttMessage} from "@/core/mqtt/types.ts";
-import {MessageQueue} from "@/core/message/message-queue.ts";
-import type {Store} from "@/core/store/types.ts";
-import {IndexedStore} from "@/core/store/indexed-store.ts";
+import type {Message} from "@/core/types.ts";
 
 export class ClientAdapter {
 
     private readonly config: ClientAdapterConfig;
     private readonly logger: ILogger;
-    private readonly msgQueue: MessageQueue;
-    private readonly store: Store;
     private readonly eventHandlers: Map<ClientAdapterEvent, Set<ClientAdapterEventHandler>> = new Map();
 
     private worker: SharedWorker | null = null;
@@ -45,14 +41,6 @@ export class ClientAdapter {
         if (!this.config.workerUrl?.length) {
             this.config.workerUrl = '/omiworker.js';
         }
-        this.store = new IndexedStore({
-            dbName: 'OmiSignal',
-            storeNames: {appState: 'appState', timestamps: 'timestamps'},
-            dbVersion: 3,
-        });
-        this.msgQueue = new MessageQueue({queueSize: config.queueSize || 3, messageTTL: config.messageTTL || 10000});
-
-        console.log(this.msgQueue, this.store);
         Object.values(ClientAdapterEvent).forEach(evt => this.eventHandlers.set(evt as ClientAdapterEvent, new Set()));
         this.logger.debug('Client Adapter initialized', {config: this.config});
     }
@@ -68,9 +56,6 @@ export class ClientAdapter {
             }
 
             this.connectionState = ClientAdapterConnectionState.CONNECTING;
-
-            await this.store.open();
-
             let useDirectConnection = false;
             if (!this.config.useSharedWorker) {
                 this.logger.debug('Direct connection to mqtt broker');
@@ -208,33 +193,18 @@ export class ClientAdapter {
             const mqttMessage = {topic, payload, workerId, timestamp: Date.now()};
             this._emit(ClientAdapterEvent.MESSAGE, mqttMessage);
 
+            if (this.config.mqttOptions?.stateTopics?.find(t => topicMatchesPattern(topic, t))) {
+                const curData = localStorage.getItem(topic);
+                if (curData?.length) {
+                    const oldMsg = JSON.parse(curData) as Message;
+                    if (oldMsg.timestamp > msg.timestamp) {
+                        this.logger.warn('Ignored old message from worker', msg.payload);
+                        return;
+                    }
+                }
 
-            // // Xử lý tin nhắn quan trọng nếu cần
-            // if (this.visibilityManager && this.indexedDBManager) {
-            //     try {
-            //         const importantTopics = this.getImportantTopics();
-            //         if (importantTopics.some(pattern => this.topicMatchesPattern(topic, pattern))) {
-            //             // Chuyển đổi thành StoredMessage
-            //             const storedMessage = {
-            //                 id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-            //                 topic,
-            //                 payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
-            //                 timestamp: Date.now(),
-            //                 qos: 0,
-            //                 retain: false,
-            //                 read: false
-            //             };
-            //
-            //             // Lưu tin nhắn quan trọng
-            //             this.indexedDBManager.saveImportantMessage(storedMessage, this.getMaxMessagesPerTopic())
-            //                 .catch(error => {
-            //                     this.logger.error('Lỗi khi lưu tin nhắn quan trọng', error);
-            //                 });
-            //         }
-            //     } catch (importantError) {
-            //         this.logger.error('Lỗi khi xử lý tin nhắn quan trọng', importantError);
-            //     }
-            // }
+                localStorage.setItem(topic, JSON.stringify({payload, id: msg.id, timestamp: msg.timestamp} as Message));
+            }
         } catch (error) {
             this.logger.error('Process worker message error: ', error);
         }

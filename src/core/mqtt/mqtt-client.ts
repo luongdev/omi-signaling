@@ -5,6 +5,7 @@ import {
     type MqttMessage
 } from "@/core/mqtt/types.ts";
 import {type ILogger, LoggerFactory} from "@/core/logger";
+import {topicMatchesPattern} from "@/helpers/utils.ts";
 
 const isProd = import.meta.env.MODE === 'production';
 
@@ -208,7 +209,7 @@ export class MqttClient {
 
                 let priority = MessagePriority.MEDIUM;
                 for (const stateTopic of this.stateTopics) {
-                    if (this.topicMatchesPattern(topic, stateTopic)) {
+                    if (topicMatchesPattern(topic, stateTopic)) {
                         priority = MessagePriority.HIGH;
                         break;
                     }
@@ -259,7 +260,7 @@ export class MqttClient {
         }
 
         this.messageHandlers.forEach((handlers, pattern) => {
-            if (pattern !== topic && this.topicMatchesPattern(topic, pattern)) {
+            if (pattern !== topic && topicMatchesPattern(topic, pattern)) {
                 handlers.forEach(handler => {
                     try {
                         handler(msg);
@@ -269,24 +270,6 @@ export class MqttClient {
                 });
             }
         });
-    }
-
-    private topicMatchesPattern(topic: string, pattern: string): boolean {
-        if (pattern === topic) return true;
-
-        if (pattern.endsWith('#')) {
-            const prefix = pattern.substring(0, pattern.length - 1);
-            return topic.startsWith(prefix)
-        }
-
-        const regexPattern = pattern
-            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            .replace(/\\\+/g, '[^/]+')
-            .replace(/\\#/g, '.*');
-
-        const regex = new RegExp(`^${regexPattern}$`);
-
-        return regex.test(topic);
     }
 
     // private attemptReconnect(): void {

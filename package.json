@@ -9,16 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "mqtt": "^5.10.4",
-    "vue": "^3.5.13"
+    "mqtt": "^5.10.4"
   },
   "devDependencies": {
     "@types/mqtt": "^0.0.34",
     "@types/node": "^22.13.10",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/tsconfig": "^0.7.0",
+    "rollup": "^4.35.0",
     "typescript": "~5.7.2",
     "vite": "^6.2.0",
+    "vue": "^3.5.13",
     "vue-tsc": "^2.2.4"
   }
 }

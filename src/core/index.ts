@@ -10,7 +10,7 @@ const client = new ClientAdapter({
             brokerUrl: 'ws://localhost:8083/mqtt',
             clientId: 'agent-0069'
         },
-        stateTopics: ['status/#', 'call/#']
+        stateTopics: ['signal/+/status', 'signal/+/call']
     },
     workerUrl: `/dist/omiworker.js?hash=${Date.now()}`,
     operationTimeout: 5000,

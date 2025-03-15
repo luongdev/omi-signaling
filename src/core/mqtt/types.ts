@@ -29,21 +29,6 @@ export interface MessageClassifier {
     getImportantTopics(): string[];
 }
 
-export class DefaultMessageClassifier implements MessageClassifier {
-    classifyPriority(msg: MqttMessage): MessagePriority {
-        return msg ? MessagePriority.LOW : MessagePriority.LOW;
-    }
-
-    getImportantTopics(): string[] {
-        return ['status/#', 'call/#'];
-    }
-
-    isImportant(msg: MqttMessage): boolean {
-        return !!msg;
-    }
-
-}
-
 export enum ConnectionState {
     CONNECTING = 'connecting',
     CONNECTED = 'connected',

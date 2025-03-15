@@ -32,8 +32,8 @@ export class ClientAdapter {
 
 
         this.config = {...defaultConfig, ...config};
-        if (this.config.mqttConfig && !this.config.mqttConfig.clientId) {
-            this.config.mqttConfig.clientId = this.config.clientId;
+        if (this.config.mqttOptions?.config && !this.config.mqttOptions.config.clientId) {
+            this.config.mqttOptions.config.clientId = this.config.clientId;
         }
         if (!this.config.workerUrl?.length) {
             this.config.workerUrl = '/omiworker.js';
@@ -86,7 +86,7 @@ export class ClientAdapter {
 
             const connectResult = await this._emitWorker({
                 type: ClientMessageType.CONNECT,
-                payload: this.config.mqttConfig
+                payload: this.config.mqttOptions,
             });
 
             if (connectResult.success) {

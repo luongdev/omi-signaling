@@ -1,12 +1,12 @@
-import type {MqttConfig} from "@/core/mqtt/types.ts";
+import type {MqttClientOptions} from "@/core/mqtt/mqtt-client.ts";
 
 export interface ClientAdapterConfig {
     clientId: string;
     workerUrl?: string;
-    mqttConfig?: MqttConfig;
     useSharedWorker?: boolean;
     pingInterval: number;
     operationTimeout: number;
+    mqttOptions?: MqttClientOptions;
 }
 
 export interface ClientAdapterOperationResult<T = any> {

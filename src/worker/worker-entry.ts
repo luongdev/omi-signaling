@@ -1,7 +1,6 @@
 import {LoggerFactory} from "@/core/logger";
 import {randomId} from "@/helpers/utils.ts";
-import {MqttClient} from "@/core/mqtt/mqtt-client.ts";
-import {DefaultMessageClassifier, type MqttConfig} from "@/core/mqtt/types.ts";
+import {MqttClient, type MqttClientOptions} from "@/core/mqtt/mqtt-client.ts";
 import {type ClientMessage, ClientMessageType, type WorkerMessage, WorkerMessageType} from "@/worker/types.ts";
 
 declare const self: {
@@ -20,7 +19,7 @@ const portConnectionStates = new Map<string, { connected: boolean; subscribedTop
 
 let mqttConnected = false;
 let mqttClient: MqttClient | undefined;
-let mqttConfig: MqttConfig | undefined;
+let mqttOptions: MqttClientOptions | undefined;
 
 self.onconnect = (e: MessageEvent) => {
     const port = e.ports[0] as Port;
@@ -77,9 +76,9 @@ self.onconnect = (e: MessageEvent) => {
 
 const handleConnect = async (port: Port, msg: ClientMessage) => {
     const reqMsgId = msg.id || randomId('msg')
-    const config = msg.payload as MqttConfig;
+    const config = msg.payload as MqttClientOptions;
 
-    if (mqttConnected && mqttClient && mqttConfig && JSON.stringify(mqttConfig) === JSON.stringify(config)) {
+    if (mqttConnected && mqttClient && mqttOptions && JSON.stringify(mqttOptions) === JSON.stringify(config)) {
         logger.warn(`Mqtt client already connected with the same configuration`);
         const portState = portConnectionStates.get(port.id);
         if (portState) portState.connected = true;
@@ -113,11 +112,11 @@ const handleConnect = async (port: Port, msg: ClientMessage) => {
         }
     }
 
-    mqttConfig = config;
+    mqttOptions = config;
     logger.info(`Create new mqtt client, config: `, config);
 
     try {
-        mqttClient = new MqttClient({config: mqttConfig, messageClassifier: new DefaultMessageClassifier()});
+        mqttClient = new MqttClient(mqttOptions);
         // setupMQTTEventHandlers(port, portId, reqMsgId);
         const success = await mqttClient.connect();
         if (!success) {

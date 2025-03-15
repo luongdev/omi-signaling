@@ -1,8 +1,6 @@
 import mqtt from 'mqtt'
 import {
-    ConnectionState,
-    DefaultMessageClassifier,
-    type MessageClassifier,
+    ConnectionState, MessagePriority,
     type MqttConfig,
     type MqttMessage
 } from "@/core/mqtt/types.ts";
@@ -12,15 +10,15 @@ const isProd = import.meta.env.MODE === 'production';
 
 export interface MqttClientOptions {
     config: MqttConfig;
-    messageClassifier?: MessageClassifier;
+    stateTopics: string[];
 }
 
 export class MqttClient {
     private readonly config: MqttConfig;
     private readonly logger: ILogger;
+    private readonly stateTopics: string[];
     private readonly messageHandlers: Map<string, ((message: MqttMessage) => void)[]> = new Map();
     private readonly connectionStateHandlers: ((state: ConnectionState) => void)[] = [];
-    private readonly messageClassifier: MessageClassifier;
 
     private client?: mqtt.MqttClient;
     // private reconnectTimer?: NodeJS.Timeout;
@@ -29,10 +27,9 @@ export class MqttClient {
 
     constructor(options: MqttClientOptions) {
         this.config = options.config;
+        this.stateTopics = options.stateTopics;
         this.logger = LoggerFactory.getLogger('MqttClient');
-        this.messageClassifier = options.messageClassifier || new DefaultMessageClassifier();
-
-        this.logger.info(`Khởi tạo MQTT Client với broker: ${this.config.brokerUrl}`);
+        this.logger.info(`Connect to mqtt: ${this.config.brokerUrl}`);
     }
 
     disconnect(): void {
@@ -175,7 +172,13 @@ export class MqttClient {
                     timestamp: Date.now()
                 };
 
-                const priority = this.messageClassifier.classifyPriority(message);
+                let priority = MessagePriority.MEDIUM;
+                for (const stateTopic of this.stateTopics) {
+                    if (this.topicMatchesPattern(stateTopic, topic)) {
+                        priority = MessagePriority.HIGH;
+                        break;
+                    }
+                }
 
                 this.logger.debug(`Received message from topic ${topic} with priority ${priority}`);
 
@@ -187,15 +190,14 @@ export class MqttClient {
     }
 
     async subscribeToImportantTopics(): Promise<Record<string, boolean>> {
-        const importantTopics = this.messageClassifier.getImportantTopics();
-        if (!importantTopics.length) {
-            this.logger.warn('No important topics to subscribe');
+        if (!this.stateTopics.length) {
+            this.logger.warn('No state topics to subscribe');
             return {};
         }
 
-        this.logger.debug(`Subscribing to important topics: ${importantTopics.join(', ')}`);
-        const result = await Promise.all(importantTopics.map(topic => this.subscribe(topic, 1)));
-        return importantTopics.reduce((acc: Record<string, boolean>, topic, index) => {
+        this.logger.debug(`Subscribing to important topics: ${this.stateTopics.join(', ')}`);
+        const result = await Promise.all(this.stateTopics.map(topic => this.subscribe(topic, 1)));
+        return this.stateTopics.reduce((acc: Record<string, boolean>, topic, index) => {
             acc[topic] = result[index];
             return acc;
         }, {});

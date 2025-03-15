@@ -1,0 +1,14 @@
+services:
+  emqx:
+    image: emqx/emqx:5.3
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "18083:18083"
+    environment:
+      - EMQX_NAME=emqx
+      - EMQX_ALLOW_ANONYMOUS=true
+      - EMQX_ACL_NOMATCH=allow
+    volumes:
+      - ../emqx/data:/opt/emqx/data
+      - ../emqx/log:/opt/emqx/log 

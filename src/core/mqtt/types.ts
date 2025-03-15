@@ -54,7 +54,7 @@ export enum ConnectionState {
 
 export interface MqttConfig {
     brokerUrl: string;
-    clientId: string;
+    clientId?: string;
     username?: string;
     password?: string;
     keepalive?: number;

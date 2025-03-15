@@ -1,4 +1,4 @@
-import {type ILogger, type LoggerConfig, LogLevel} from "./logger.ts";
+import {type ILogger, type LoggerConfig, LogLevel} from "./types.ts";
 
 const LOG_COLORS: Record<LogLevel, string> = {
     [LogLevel.DEBUG]: 'color: #9E9E9E',

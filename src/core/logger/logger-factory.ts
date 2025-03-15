@@ -1,4 +1,4 @@
-import {type ILogger, LogLevel} from "./logger.ts";
+import {type ILogger, LogLevel} from "./types.ts";
 import {ConsoleLogger} from "./console-logger.ts";
 
 

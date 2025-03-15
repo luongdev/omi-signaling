@@ -3,6 +3,8 @@ import { resolve } from 'path'
 
 export default defineConfig({
   build: {
+    sourcemap: true,
+    minify: false,
     lib: {
       entry: resolve(__dirname, 'src/core/index.ts'),
       name: 'OmiSignal',
@@ -15,7 +17,6 @@ export default defineConfig({
         worker: resolve(__dirname, 'src/worker/worker-entry.ts'),
       },
       output: {
-        dir: 'public',
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === 'worker') {
             return 'omiworker.js';
@@ -26,6 +27,7 @@ export default defineConfig({
         inlineDynamicImports: false,
       },
     },
+    emptyOutDir: true,
   },
   resolve: {
     alias: {

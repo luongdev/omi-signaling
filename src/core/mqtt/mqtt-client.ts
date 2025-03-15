@@ -5,7 +5,7 @@ import {
     type MessageClassifier,
     type MqttConfig,
     type MqttMessage
-} from "@/core/mqtt/mqtt.ts";
+} from "@/core/mqtt/types.ts";
 import {type ILogger, LoggerFactory} from "@/core/logger";
 
 const isProd = import.meta.env.MODE === 'production';
@@ -29,7 +29,7 @@ export class MqttClient {
 
     constructor(options: MqttClientOptions) {
         this.config = options.config;
-        this.logger = LoggerFactory.getLogger('MQTTClient');
+        this.logger = LoggerFactory.getLogger('MqttClient');
         this.messageClassifier = options.messageClassifier || new DefaultMessageClassifier();
 
         this.logger.info(`Khởi tạo MQTT Client với broker: ${this.config.brokerUrl}`);

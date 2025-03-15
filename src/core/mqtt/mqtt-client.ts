@@ -21,7 +21,6 @@ export class MqttClient {
     private readonly connectionStateHandlers: ((state: ConnectionState) => void)[] = [];
 
     private client?: mqtt.MqttClient;
-    // private reconnectTimer?: NodeJS.Timeout;
     private connectionState: ConnectionState = ConnectionState.DISCONNECTED;
 
 
@@ -35,7 +34,6 @@ export class MqttClient {
     disconnect(): void {
         if (!this.client) return;
 
-        // this.stopReconnectTimer();
         this.client.end(true, () => {
             this.client = undefined;
             this.logger.debug('Mqtt client disconnected');
@@ -183,20 +181,17 @@ export class MqttClient {
         this.client.on('close', () => {
             this.logger.debug('Mqtt client closed');
             this.updateConnectionState(ConnectionState.DISCONNECTED);
-            // this.attemptReconnect();
         });
 
         this.client.on('offline', () => {
             this.logger.debug('Mqtt client offline');
             this.updateConnectionState(ConnectionState.DISCONNECTED);
-            // this.attemptReconnect();
         });
 
         this.client.on('error', (error) => {
             this.logger.error(`Mqtt client error: ${error.message}`, error);
             if (this.connectionState === ConnectionState.CONNECTING) {
                 this.updateConnectionState(ConnectionState.FAILED);
-                // this.attemptReconnect();
             }
         });
 
@@ -258,7 +253,7 @@ export class MqttClient {
                 try {
                     handler(msg);
                 } catch (error) {
-                    this.logger.error(`Lỗi khi gọi handler cho topic ${topic}: ${(error as Error).message}`, error);
+                    this.logger.error(`Error when notify message ${topic}: ${(error as Error).message}`, error);
                 }
             });
         }
@@ -269,7 +264,7 @@ export class MqttClient {
                     try {
                         handler(msg);
                     } catch (error) {
-                        this.logger.error(`Lỗi khi gọi handler cho pattern ${pattern}: ${(error as Error).message}`, error);
+                        this.logger.error(`Error when notify message ${pattern}: ${(error as Error).message}`, error);
                     }
                 });
             }
